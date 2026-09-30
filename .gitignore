@@ -1,0 +1,26 @@
+# Local Python environment and bytecode
+.venv/
+__pycache__/
+*.py[cod]
+
+# Local database, cache, credentials, and dashboard customizations
+/data/*
+!/data/.gitkeep
+*.db
+*.db-shm
+*.db-wal
+.env
+.env.*
+!.env.example
+
+# Generated reports and process output
+/reports/*
+!/reports/.gitkeep
+.dash.log
+.dash.pid
+
+# Local workflow state and imported research material
+.workflows/
+_incoming/
+.topic-canon.txt
+.DS_Store

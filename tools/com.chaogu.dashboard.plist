@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  短线情绪看板 · macOS launchd 开机自启模板
+
+  为什么不直接写好：launchd 需要把文件放到 ~/Library/LaunchAgents/，
+  这在当前沙箱下属工作区外，需你手动复制一次。
+
+  安装（把下面 __ROOT__ 换成仓库绝对路径）：
+      ROOT=/absolute/path/to/a-share-observer
+      sed "s|__ROOT__|$ROOT|g; s|__PY__|$(command -v python3)|g" \
+        tools/com.chaogu.dashboard.plist > ~/Library/LaunchAgents/com.chaogu.dashboard.plist
+      launchctl load  ~/Library/LaunchAgents/com.chaogu.dashboard.plist
+      launchctl start com.chaogu.dashboard
+
+  查看 / 停止：
+      launchctl list | grep chaogu
+      launchctl stop  com.chaogu.dashboard
+      launchctl unload ~/Library/LaunchAgents/com.chaogu.dashboard.plist
+
+  日志：<ROOT>/.dash.log
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.chaogu.dashboard</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>__PY__</string>
+        <string>-u</string>
+        <string>run.py</string>
+        <string>dash</string>
+        <string>--host</string>
+        <string>127.0.0.1</string>
+        <string>--port</string>
+        <string>8787</string>
+        <!-- 长期驻留必须自动采集，否则看板永远显示旧数据 -->
+        <string>--autocollect</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__ROOT__</string>
+
+    <!-- 开机 / 登录后自启 -->
+    <key>RunAtLoad</key>
+    <true/>
+
+    <!-- 崩溃自动拉起（长期驻留的关键） -->
+    <key>KeepAlive</key>
+    <true/>
+
+    <!-- 节流：最短 10 秒内不重复拉起，避免崩溃循环打满 CPU -->
+    <key>ThrottleInterval</key>
+    <integer>10</integer>
+
+    <key>StandardOutPath</key>
+    <string>__ROOT__/.dash.log</string>
+    <key>StandardErrorPath</key>
+    <string>__ROOT__/.dash.log</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PYTHONUNBUFFERED</key>
+        <string>1</string>
+    </dict>
+</dict>
+</plist>

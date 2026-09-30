@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>A股观察站</title>
+<link rel="stylesheet" href="/static/style.css">
+<script src="/static/vendor/echarts.min.js"></script>
+</head>
+<body>
+<nav class="top">
+  <div class="brand"><span class="logo">◆</span> A股观察站</div>
+  <div class="tabs" id="tabs"></div>
+  <div class="spacer"></div>
+  <div class="live" id="live"><i></i><span>—</span></div>
+  <select id="date" title="交易日"></select>
+  <select id="refresh" title="自动刷新">
+    <option value="0">不自动刷新</option>
+    <option value="30">30 秒</option>
+    <option value="60" selected>1 分钟</option>
+    <option value="300">5 分钟</option>
+  </select>
+  <button class="btn" id="btnEdit" title="编辑布局：拖动排序、拉右下角改大小">编辑</button>
+  <button class="btn" id="btnAdd">+ 面板</button>
+  <button class="btn ghost" id="btnMore" title="更多">⋯</button>
+</nav>
+
+<section class="ask">
+  <div class="askbox">
+    <span class="spark">✦</span>
+    <input id="prompt" autocomplete="off"
+      placeholder="一句话生成看板，例如：盯机器人这条线，看龙头梯队、相关快讯和明天怎么做">
+    <button class="btn primary" id="btnGen">生成看板</button>
+  </div>
+  <div class="chips" id="examples"></div>
+</section>
+
+<main id="grid" class="grid"></main>
+
+<div class="drawer" id="drawer">
+  <div class="drawer-head"><b id="drawerTitle"></b><button class="x" id="drawerClose">✕</button></div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+<div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
+<div class="toast" id="toast"></div>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
