@@ -53,9 +53,11 @@ if [[ ! -x "$VENV/bin/python" ]]; then
   "$PYTHON_BIN" -m venv "$VENV"
 fi
 APP_PYTHON="$VENV/bin/python"
+CHECK_HOST="${DASH_HOST:-127.0.0.1}"
+CHECK_PORT="${DASH_PORT:-8787}"
 
 cd "$ROOT"
-"$APP_PYTHON" run.py status
+"$APP_PYTHON" run.py doctor --host "$CHECK_HOST" --port "$CHECK_PORT"
 
 if ((COLLECT)); then
   "$APP_PYTHON" run.py daily
@@ -70,6 +72,9 @@ else
 
 Setup complete. Start the dashboard with:
   ./.venv/bin/python run.py dash
+
+Verify the installation at any time with:
+  ./.venv/bin/python run.py doctor
 
 For a first data collection and macOS login startup, use:
   ./setup.sh --collect --autostart

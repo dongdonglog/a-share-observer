@@ -289,7 +289,7 @@ def fetch_sectors(kind="concept", pages=3):
     return out
 
 
-def fetch_kline(secid, limit=20):
+def fetch_kline(secid, limit=20, adjusted=True):
     """日K。板块 secid 形如 90.BK1063，个股 0.002188 / 1.600825。
 
     字段顺序（fields2=f51..f61）：
@@ -298,7 +298,7 @@ def fetch_kline(secid, limit=20):
     """
     url = (f"{PUSH2HIS}?secid={secid}&fields1=f1,f2,f3"
            f"&fields2=f51,f52,f53,f54,f55,f56,f57,f58,f59,f60,f61"
-           f"&klt=101&fqt=1&end=20500101&lmt={limit}")
+           f"&klt=101&fqt={1 if adjusted else 0}&end=20500101&lmt={limit}")
     j = get_json(url, referer="https://quote.eastmoney.com/")
     data = j.get("data") or {}
     out = []

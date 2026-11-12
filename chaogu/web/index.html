@@ -4,14 +4,18 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>A股观察站</title>
-<link rel="stylesheet" href="/static/style.css">
+<link rel="stylesheet" href="/static/style.css?v=workspace-ui-17">
 <script src="/static/vendor/echarts.min.js"></script>
 </head>
 <body>
 <nav class="top">
   <div class="brand"><span class="logo">◆</span> A股观察站</div>
-  <div class="tabs" id="tabs"></div>
+  <div class="tabbar">
+    <div class="tabs" id="tabs" role="tablist" aria-label="看板标签"></div>
+    <button class="btn ghost tab-new" id="btnNewBoard" title="新建看板" aria-label="新建看板">＋</button>
+  </div>
   <div class="spacer"></div>
+  <button class="btn alert-button" id="btnAlerts" title="触发记录" aria-label="触发记录"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9M10 21h4"/></svg><span>提醒</span><b id="unreadBadge" hidden>0</b></button>
   <div class="live" id="live"><i></i><span>—</span></div>
   <select id="date" title="交易日"></select>
   <select id="refresh" title="自动刷新">
@@ -20,19 +24,15 @@
     <option value="60" selected>1 分钟</option>
     <option value="300">5 分钟</option>
   </select>
-  <button class="btn" id="btnEdit" title="编辑布局：拖动排序、拉右下角改大小">编辑</button>
-  <button class="btn" id="btnAdd">+ 面板</button>
-  <button class="btn ghost" id="btnMore" title="更多">⋯</button>
+  <button class="btn ghost" id="btnMore" title="更多" aria-label="更多">⋯</button>
 </nav>
 
-<section class="ask">
-  <div class="askbox">
-    <span class="spark">✦</span>
-    <input id="prompt" autocomplete="off"
-      placeholder="一句话生成看板，例如：盯机器人这条线，看龙头梯队、相关快讯和明天怎么做">
-    <button class="btn primary" id="btnGen">生成看板</button>
-  </div>
-  <div class="chips" id="examples"></div>
+<section class="boardbar" id="boardbar">
+  <div class="bb-title"><b id="boardTitle"></b><span class="faint" id="boardMeta"></span></div>
+  <div class="spacer"></div>
+  <button class="btn" id="btnAdd" title="向当前看板添加面板">+ 添加面板</button>
+  <button class="btn" id="btnEdit" title="编辑布局：拖标题栏移动面板，拉右下角手柄改大小">编辑布局</button>
+  <button class="btn ghost" id="btnBoardMore" title="看板操作" aria-label="看板操作">⋯</button>
 </section>
 
 <main id="grid" class="grid"></main>
@@ -44,6 +44,9 @@
 <div class="modal" id="modal"><div class="modal-card" id="modalCard"></div></div>
 <div class="toast" id="toast"></div>
 
-<script src="/static/app.js"></script>
+<script src="/static/vendor/jsencrypt-eastmoney.js"></script>
+<script src="/static/layout.js?v=workspace-ui-17"></script>
+<script src="/static/workbench.js?v=workspace-ui-4"></script>
+<script src="/static/app.js?v=workspace-ui-17"></script>
 </body>
 </html>

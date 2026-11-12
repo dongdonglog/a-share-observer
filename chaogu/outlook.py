@@ -82,8 +82,9 @@ def _broken_by_line(conn, date, lines):
 def _news_by_line(conn, date, lines, hours=40):
     since = (datetime.strptime(date, "%Y-%m-%d") + timedelta(hours=15)
              - timedelta(hours=hours)).isoformat()
-    news = conn.execute("SELECT ts, title, content FROM news WHERE ts>=? "
-                        "ORDER BY ts DESC", (since,)).fetchall()
+    from .news_impact import bounds
+    news = conn.execute("SELECT ts, title, content FROM news WHERE replace(ts,' ','T')>=? "
+                        "AND replace(ts,' ','T')<? ORDER BY ts DESC", (since,bounds(date)[1])).fetchall()
     for ln in lines:
         names = [ln["name"]] + [a for a in ln.get("alias") or []
                                 if len(a) <= 6]

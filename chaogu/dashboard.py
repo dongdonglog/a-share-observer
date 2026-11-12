@@ -29,9 +29,12 @@ import json
 import threading
 from datetime import datetime
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
-from urllib.parse import urlparse
+from urllib.parse import urlparse, parse_qs
 
 from . import config, db, seat, theme
+# 面板的对外可见范围定义在 panels 里（那边才有面板目录），这里只引用一次，
+# 避免"私有前缀"有两份定义、改一处漏一处。panels 不反向依赖本模块，无循环。
+from .panels import PRIVATE_PANEL_PREFIXES
 
 # 聚合标签：不是真实席位，展示与跟随都要排除
 _AGG = None
@@ -1091,6 +1094,34 @@ def render(d):
 
 # ------------------------------------------------------------------ 服务层
 
+# ------------------------------------------------------------------ 本机专属接口
+# 这些接口能读到本机敏感数据（账户、盯盘、凭证），或能改写/删除本机文件，
+# 所以只认 loopback + 同源。
+#
+# 这是一份**黑名单**：没登记进来的路径默认放行。它挡不住新增接口忘记登记，
+# 所以 tools/test_llm_config.py 里有一个扫描 webapi.py 写路由的用例
+# （test_every_write_route_is_registered_as_local_only），新增 POST/DELETE
+# 接口却忘了登记时，测试会直接红，不靠人记。
+PRIVATE_API_PREFIXES = ("/api/eastmoney/", "/api/portfolio", "/api/news-impact/",
+                        "/api/watch", "/api/llm",
+                        # 看板写接口：reset 会清空所有自定义看板，duplicate/order/import
+                        # 会改本机配置。曾经是裸奔的，一次误调用就删掉了 3 个看板。
+                        "/api/dashboards",
+                        # AI 编排接口：每次调用都消耗用户的模型额度。
+                        "/api/ai/")
+
+
+def _is_private_api(raw_path):
+    """判断一个请求路径是否属于"仅限本机"的接口（含 query 判断）。"""
+    u = urlparse(raw_path)
+    if u.path.startswith(PRIVATE_API_PREFIXES):
+        return True
+    if u.path == "/api/panel":
+        return any(v.startswith(PRIVATE_PANEL_PREFIXES)
+                   for v in parse_qs(u.query).get("id", []))
+    return False
+
+
 class _Handler(BaseHTTPRequestHandler):
     server_version = "chaogu-dash"
     _lock = threading.Lock()
@@ -1104,24 +1135,70 @@ class _Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(raw)))
         self.send_header("Cache-Control", "no-store")
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.send_header("X-Frame-Options", "DENY")
+        self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
         try:
             self.wfile.write(raw)
-        except BrokenPipeError:
+        except (BrokenPipeError, ConnectionResetError):
+            # 客户端在响应写完前断开是常态（用户切标签、浏览器取消请求），不值得记一条错误。
             pass
 
     def _reply(self, res):
         code, ctype, body = res
         return self._send(body, ctype, code)
 
+    def _is_local_client(self):
+        """请求是否来自本机——只看 TCP 来源，不拦截、不发响应。
+
+        绑 0.0.0.0 之后这个判断决定内网其他人能看到什么：/api/meta 据此裁掉
+        账户、盯盘和 AI 面板。注意它和 _local_request 的分工——那个负责"挡"，
+        这个只负责"区分"，两者共用同一套 loopback 判定。
+        """
+        import ipaddress
+        try:
+            return ipaddress.ip_address(self.client_address[0]).is_loopback
+        except ValueError:
+            return False
+
+    def _local_request(self, write=False):
+        """抵御跨站表单、DNS rebinding 和远程访问；检查在读取请求体前执行。"""
+        if not _is_private_api(self.path):
+            return True
+        port = self.server.server_port
+        try:
+            local = self._is_local_client()
+            host = self.headers.get("Host", "")
+            hosts = {f"127.0.0.1:{port}", f"localhost:{port}", f"[::1]:{port}"}
+            origin = self.headers.get("Origin")
+            valid = local and host in hosts and self.headers.get("Sec-Fetch-Site") != "cross-site"
+            if write or origin:
+                valid = valid and origin == "http://" + host
+            if write and self.command == "POST":
+                valid = valid and self.headers.get_content_type() == "application/json"
+            if valid:
+                return True
+        except ValueError:
+            pass
+        self.close_connection = True
+        self._send('{"error":"账户看板仅接受本机同源请求，请使用本机地址打开"}',
+                   "application/json; charset=utf-8", 403)
+        return False
+
     def do_GET(self):
+        # 先取来源再走拦截：_local_request 只对私密接口发 403，
+        # 公开接口非本机也放行，所以要单独把来源传下去，供裁剪看板列表用。
+        local = self._is_local_client()
+        if not self._local_request():
+            return
         u = urlparse(self.path)
         path = u.path
         if path == "/favicon.ico":
             return self._send(b"", "image/x-icon", 204)
         # 新版看板（Grafana 式 + AI 生成）；旧版挪到 /legacy
         from . import webapi
-        res = webapi.handle_get(path, u.query)
+        res = webapi.handle_get(path, u.query, local)
         if res is not None:
             return self._reply(res)
         # 串行化查库，避免 sqlite 多线程问题
@@ -1146,9 +1223,18 @@ class _Handler(BaseHTTPRequestHandler):
         self._send(html_doc)
 
     def do_POST(self):
+        if not self._local_request(write=True):
+            return
         from . import webapi
         u = urlparse(self.path)
-        n = int(self.headers.get("Content-Length") or 0)
+        try:
+            n = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            n = -1
+        body_limit = 2_100_000 if u.path == "/api/portfolio/import" else 262144
+        if not 0 <= n <= body_limit or self.headers.get("Transfer-Encoding"):
+            self.close_connection = True
+            return self._send('{"error":"请求体无效或过大"}', "application/json", 400)
         body = self.rfile.read(n) if n else b""
         res = webapi.handle_post(u.path, body)
         if res is None:
@@ -1157,6 +1243,8 @@ class _Handler(BaseHTTPRequestHandler):
         return self._reply(res)
 
     def do_DELETE(self):
+        if not self._local_request(write=True):
+            return
         from . import webapi
         u = urlparse(self.path)
         res = webapi.handle_delete(u.path, u.query)
@@ -1409,6 +1497,11 @@ def serve(host="127.0.0.1", port=8787, autocollect=False, at="15:30",
     print(f"  旧版：{url}legacy    API：{url}api/meta")
 
     stop = threading.Event()
+    from . import eastmoney
+    eastmoney.start(stop)
+    from . import watch
+    watch.start(stop)
+    print("  盯盘监控已就绪（两家人气榜与资金流每 10 分钟采集；行情仅在规则启用后请求）")
     if live_refresh:
         from . import live
         live.start(stop)
@@ -1422,10 +1515,20 @@ def serve(host="127.0.0.1", port=8787, autocollect=False, at="15:30",
     else:
         print("  自动采集未启用（加 --autocollect 可在收盘后自动采集）")
 
+    # LaunchAgent 正常停止会发 SIGTERM；通过 finally 清理内存并尝试官方退出。
+    import signal
+    previous_term = None
+    if threading.current_thread() is threading.main_thread():
+        def terminate(_signum, _frame):
+            raise KeyboardInterrupt
+        previous_term = signal.signal(signal.SIGTERM, terminate)
     try:
         httpd.serve_forever()
     except KeyboardInterrupt:
         print("\n已停止。")
     finally:
         stop.set()
+        eastmoney.session.logout()
         httpd.server_close()
+        if previous_term is not None:
+            signal.signal(signal.SIGTERM, previous_term)

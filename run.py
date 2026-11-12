@@ -9,6 +9,7 @@
     python3 run.py prices --days 160     # 历史价格回填（较慢）
     python3 run.py analyze --date 2026-09-30
     python3 run.py report  --date 2026-09-30
+    python3 run.py doctor                 # 离线安装健康检查
     python3 run.py status
 """
 
@@ -332,24 +333,40 @@ def cmd_dash(a):
 
 def cmd_llm_setup(a):
     """把 LLM 配置落盘到 data/llm.json（开机自启的看板读不到 shell 环境变量）。"""
+    import getpass
+    import os
     from chaogu import llm
     cfg = None
     if a.base:
-        cfg = {"base": a.base, "key": a.key or "", "api": a.api,
+        key = a.key
+        if key is None and not a.no_key:
+            key = (os.environ.get("CHAOGU_LLM_KEY") or
+                   os.environ.get("ANTHROPIC_AUTH_TOKEN") or
+                   os.environ.get("ANTHROPIC_API_KEY"))
+            if key is None and sys.stdin.isatty():
+                key = getpass.getpass("API Key（隐藏输入；本地无密钥端点可直接回车）: ")
+        cfg = {"base": a.base, "key": key or "", "api": a.api,
                "model": a.model or llm.DEFAULT_MODEL}
     else:
         cfg = llm.load_cfg()
         if cfg and a.model:
             cfg["model"] = a.model
     if not cfg:
-        print("没有可用配置：请传 --base/--key，或先设置 ANTHROPIC_BASE_URL + "
+        print("没有可用配置：请传 --base，或先设置 ANTHROPIC_BASE_URL + "
               "ANTHROPIC_AUTH_TOKEN 环境变量")
         return
     llm.save_cfg(cfg)
     print(f"已写入 {llm.CFG_PATH}（权限 600）：{cfg['api']} {cfg['base']} "
           f"model={cfg['model']}")
-    txt = llm.chat("你是测试助手", "只回复两个字：正常", max_tokens=200, timeout=60)
-    print("连通性测试：", txt or f"失败 {llm.last_error}")
+    r = llm.test_connection(timeout=60)
+    if r.get("ok"):
+        print("连通性测试：", r["message"])
+    else:
+        print(f"连通性测试：失败 —— {r['message']}；{r['action']}")
+        if r.get("status"):
+            print(f"  来自网关的 HTTP {r['status']}")
+        if r.get("detail"):
+            print("  原始报文：", r["detail"])
 
 
 def cmd_leader_check(a):
@@ -855,6 +872,11 @@ def cmd_status(a):
         conn.close()
 
 
+def cmd_doctor(a):
+    from chaogu import doctor
+    raise SystemExit(0 if doctor.run(a.host, a.port, a.require_running) else 1)
+
+
 def main():
     ap = argparse.ArgumentParser(
         description="A股观察站：市场数据与情绪周期复盘看板",
@@ -918,13 +940,16 @@ def main():
     p.add_argument("--at", default="15:30",
                    help="自动采集的触发时间，默认 15:30")
     p.add_argument("--no-live", action="store_true", dest="no_live",
-                   help="关闭盘中实时刷新（默认开启：快讯/涨停池/题材）")
+                   help="关闭市场快讯/涨停池刷新；人气榜采集和已启用盯盘规则仍独立运行")
     p.set_defaults(func=cmd_dash)
 
     p = sub.add_parser("llm-setup", help="配置看板用的 LLM（AI 生成看板/AI 解读）")
     p.add_argument("--base", help="接口地址，如 https://api.anthropic.com 或 "
                    "https://ark.cn-beijing.volces.com/api/v3")
-    p.add_argument("--key", help="API Key")
+    auth = p.add_mutually_exclusive_group()
+    auth.add_argument("--key", help="API Key（兼容旧脚本；交互使用建议隐藏输入）")
+    auth.add_argument("--no-key", action="store_true",
+                      help="本地端点明确不需要认证；不提示输入 API Key")
     p.add_argument("--model", help=f"模型名，默认 {'claude-sonnet-5-5'}")
     p.add_argument("--api", default="anthropic", choices=["anthropic", "openai"],
                    help="协议：anthropic 或 openai 兼容（豆包/DeepSeek 等）")
@@ -993,6 +1018,13 @@ def main():
 
     p = sub.add_parser("status", help="查看数据库概览")
     p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("doctor", help="离线检查安装、数据库、静态资源和看板端口")
+    p.add_argument("--host", default="127.0.0.1")
+    p.add_argument("--port", type=int, default=8787)
+    p.add_argument("--require-running", action="store_true",
+                   help="要求指定端口正在运行本项目看板")
+    p.set_defaults(func=cmd_doctor)
 
     a = ap.parse_args()
     a.func(a)

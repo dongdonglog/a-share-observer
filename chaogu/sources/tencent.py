@@ -9,6 +9,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from ..net import FetchError, get_json
 
 KLINE = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
@@ -87,10 +89,17 @@ def fetch_quotes(codes, markets=None):
         if len(parts) < 33:
             continue
         try:
+            quote_at = None
+            try:
+                quote_at = datetime.strptime(parts[30], "%Y%m%d%H%M%S").isoformat(timespec="seconds")
+            except ValueError:
+                pass
             out.append({
                 "code": code,
                 "name": parts[1],
+                "quote_at": quote_at,
                 "close": float(parts[3]) if parts[3] else None,
+                "volume": float(parts[6]) if len(parts) > 6 and parts[6] else None,
                 "pct": float(parts[32]) if parts[32] else None,
                 "turnover": float(parts[38]) if len(parts) > 38
                             and parts[38] else None,

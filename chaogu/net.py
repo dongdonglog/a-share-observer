@@ -77,7 +77,15 @@ def _request(url, referer=None, timeout=None):
         conn.timeout = timeout
     conn.request("GET", path, headers=headers)
     resp = conn.getresponse()
-    body = resp.read().decode("utf-8", "replace")
+    raw = resp.read()
+    # 腾讯报价偶尔以 GB18030 返回中文，而其他 JSON 接口是 UTF-8。
+    # 先按 UTF-8 解码；出现替换字符时再尝试 GB18030，避免名称变成乱码。
+    body = raw.decode("utf-8", "replace")
+    if "�" in body:
+        try:
+            body = raw.decode("gb18030")
+        except UnicodeDecodeError:
+            pass
     if resp.status != 200:
         raise FetchError(f"HTTP {resp.status} {url[:100]}")
     return body

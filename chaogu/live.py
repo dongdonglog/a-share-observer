@@ -23,7 +23,8 @@ from datetime import datetime
 
 from . import db
 
-INTERVALS = {"news": 30, "limit": 60, "index": 30, "theme": 180, "down": 120}
+INTERVALS = {"news": 30, "limit": 60, "index": 30, "theme": 180, "down": 120,
+             "portfolio": 30, "portfolio_research": 300}
 
 STATE = {
     "enabled": False, "session": False, "last": {}, "errors": {},
@@ -116,6 +117,7 @@ def refresh_index():
 
 
 def _loop(stop):
+    from . import portfolio
     while not stop.is_set():
         now = time.time()
         date = datetime.now().strftime("%Y-%m-%d")
@@ -123,6 +125,12 @@ def _loop(stop):
         STATE["session"] = sess
         STATE["ticks"] += 1
         with _lock:
+            # 账户监控独立按上海时间判断，且需用户在账户设置中主动开启。
+            if in_session(portfolio.now()) and _due("portfolio", now):
+                _run("portfolio", portfolio.refresh_quotes)
+            if in_session(portfolio.now()) and _due("portfolio_research", now):
+                from . import research_data
+                _run("portfolio_research", research_data.refresh_connected)
             if _due("news", now):
                 _run("news", refresh_news)
             if _due("index", now) and (sess or not STATE["index"]):
