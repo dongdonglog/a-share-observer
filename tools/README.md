@@ -88,3 +88,22 @@ python3 run.py seat --overfit        # 10. DSR + PBO 过拟合校正
    严格计算需要把持仓错开（如每日只开 1/5 仓位）。
 
 3. **样本期仅 2026 年 1-9 月一轮行情**，未覆盖完整牛熊。
+
+---
+
+## 四、工程脚本
+
+不属于研究流程，但改代码或分发时会用到：
+
+| 脚本 | 用途 |
+|---|---|
+| `dash.sh` | 看板常驻管理：`status` / `start` / `stop` / `restart` / `logs` / `install` / `uninstall`。`status` 打印的地址是从**实际监听 socket** 反推的，不是回读配置参数。 |
+| `pack.sh` | 打包分发给别人，产出 `dist/a-share-observer-YYYYMMDD.zip`，排除本地库与凭据并做三重自检。 |
+| `test_*.py` | 纯标准库 unittest，改完代码跑一遍即可，不需要 pytest。 |
+| `test_layout.js` | 看板拖拽布局的离线测试（`node tools/test_layout.js`）：面板互斥、拖动中的排斥、松手后的压实、幂等性，以及前后端算法一致性。改 `chaogu/web/layout.js` 后必跑。 |
+| `test_eastmoney_crypto.js` | 校验随包分发的 JSEncrypt 与 OpenSSL 互通（`node tools/test_eastmoney_crypto.js`）。 |
+| `com.chaogu.dashboard.plist` | launchd 模板，由 `dash.sh install` 填充占位符后写入 `~/Library/LaunchAgents/`。 |
+
+改动 `app.js`、`layout.js` 或 `style.css` 后，记得把 `chaogu/web/index.html` 里三处缓存戳
+（`?v=workspace-ui-N`）一起升，否则浏览器会继续用旧文件——这个坑在开发时
+表现为「明明改了却没生效」。
