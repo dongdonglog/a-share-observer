@@ -7,10 +7,15 @@
 
   安装（把下面 __ROOT__ 换成仓库绝对路径）：
       ROOT=/absolute/path/to/a-share-observer
-      sed "s|__ROOT__|$ROOT|g; s|__PY__|$(command -v python3)|g" \
+      sed "s|__ROOT__|$ROOT|g; s|__PY__|$(command -v python3)|g; s|__HOST__|127.0.0.1|g" \
         tools/com.chaogu.dashboard.plist > ~/Library/LaunchAgents/com.chaogu.dashboard.plist
       launchctl load  ~/Library/LaunchAgents/com.chaogu.dashboard.plist
       launchctl start com.chaogu.dashboard
+
+  __HOST__ 是监听地址：127.0.0.1 只许本机（默认），0.0.0.0 允许内网访问。
+  改成 0.0.0.0 等于把行情看板开放给能连上这台机器的任何人——账户、盯盘和
+  AI 面板仍然会按来源挡住，但公开面板（涨停、主线、快讯）谁都能看。
+  用 ./tools/dash.sh install 配合 DASH_HOST=0.0.0.0 更省事，它会替换这里。
 
   查看 / 停止：
       launchctl list | grep chaogu
@@ -33,7 +38,7 @@
         <string>run.py</string>
         <string>dash</string>
         <string>--host</string>
-        <string>127.0.0.1</string>
+        <string>__HOST__</string>
         <string>--port</string>
         <string>8787</string>
         <!-- 长期驻留必须自动采集，否则看板永远显示旧数据 -->

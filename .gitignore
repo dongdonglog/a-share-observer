@@ -17,10 +17,22 @@ __pycache__/
 /reports/*
 !/reports/.gitkeep
 .dash.log
+.dash-error.log
 .dash.pid
+
+# Distribution packages produced by tools/pack.sh
+# 产物里有整套源码副本，提交进去会让仓库凭空翻倍，而且容易和源码改动脱节。
+/dist/
+
+# 临时备份（README 重构、数据库迁移前的快照等）
+*.bak
 
 # Local workflow state and imported research material
 .workflows/
 _incoming/
 .topic-canon.txt
 .DS_Store
+
+# WorkBuddy 工作区记忆。里面记着开发过程的判断依据，其中出现过 API Key
+# 的掩码片段（sk-d898a…2ff8），属于本机私有信息，不进仓库。
+.workbuddy/
